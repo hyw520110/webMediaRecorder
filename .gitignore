@@ -7,3 +7,4 @@
 **/node_modules/**
 **/app_auto_test_venv/**
 **/*.lock
+**/dist/**

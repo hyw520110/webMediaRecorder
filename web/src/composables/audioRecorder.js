@@ -198,9 +198,6 @@ export function useAudioRecorder() {
             isRecording.value = true
             errorMessage.value = ''
 
-            const wsUrl =
-                process.env.VUE_APP_WEBSOCKET_URL ||
-                'ws://localhost:8080/audio-stream'
             console.log('创建WebSocket连接，类型: audio')
             // 创建WebSocket连接并等待连接建立
             wsConnection = initializeWebSocket(
@@ -210,7 +207,6 @@ export function useAudioRecorder() {
                     onError: handleWebSocketError,
                 },
                 isRecording,
-                wsUrl,
             )
 
             console.log('等待WebSocket连接建立...')
@@ -224,13 +220,27 @@ export function useAudioRecorder() {
 
             if (hasLocalAudio) {
                 console.log('开始本地录音')
-                await audioProcessor.startLocalRecording()
-                // 发送消息类型（0音频）和音频流
-                const audioModeMessage = new Uint8Array([0])
-                socketInstance.send(audioModeMessage.buffer)
+                const stream = await audioProcessor.startLocalRecording()
+
+                // 创建消息类型和音频流的复合包
+                const messageType = new Uint8Array([0]) // 0表示音频
+                const combinedBuffer = new Uint8Array(1 + stream.size)
+                combinedBuffer.set(messageType, 0)
+
+                // 开始录音并发送音频流
+                mediaRecorder.value = new MediaRecorder(stream)
+                mediaRecorder.value.ondataavailable = (event) => {
+                    if (event.data.size > 0) {
+                        const audioData = new Uint8Array(event.data.size)
+                        combinedBuffer.set(audioData, 1)
+                        socketInstance.send(combinedBuffer.buffer)
+                    }
+                }
+                mediaRecorder.value.start(100) // 100ms数据切片
             } else {
                 // 仅发送消息类型
-                socketInstance.send(new Uint8Array([0]).buffer)
+                const messageType = new Uint8Array([0])
+                socketInstance.send(messageType.buffer)
                 errorMessage.value = '当前设备不支持本地音频录制'
                 console.warn('当前设备不支持本地音频录制')
             }
