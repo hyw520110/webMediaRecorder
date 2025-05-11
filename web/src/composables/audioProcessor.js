@@ -6,7 +6,6 @@ export function useAudioProcessor({
     isUsingWorklet,
     playerNode,
     errorMessage,
-    socketRef,
 }) {
     const playBuffer = ref([])
     const isPlaying = ref(false)
@@ -202,31 +201,6 @@ export function useAudioProcessor({
     return {
         initAudioContext,
         processAudioData,
-        startLocalRecording: async () => {
-            try {
-                const stream = await navigator.mediaDevices.getUserMedia({
-                    audio: true,
-                })
-                mediaRecorder.value = new MediaRecorder(stream)
-                mediaRecorder.value.start(100) // 100ms数据切片
-
-                mediaRecorder.value.ondataavailable = (e) => {
-                    if (
-                        e.data.size > 0 &&
-                        typeof socketRef !== 'undefined' &&
-                        socketRef.value?.readyState === WebSocket.OPEN
-                    ) {
-                        socketRef.value.send(e.data)
-                    }
-                }
-
-                console.log('本地录音已启动')
-            } catch (error) {
-                console.error('麦克风访问失败:', error)
-                errorMessage.value = `麦克风访问失败: ${error.message}`
-                throw error
-            }
-        },
         stopRecording: () => {
             if (mediaRecorder.value) {
                 mediaRecorder.value.stop()

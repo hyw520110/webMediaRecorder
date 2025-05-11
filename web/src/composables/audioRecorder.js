@@ -99,6 +99,7 @@ export const initializeWebSocket = (type, callbacks, isRecordingRef) => {
     const handleClose = (event) => {
         // 如果连接意外关闭且处于录音状态，尝试重新连接
         if (isRecordingRef && isRecordingRef.value && event.code !== 1000) {
+            console.warn('WebSocket连接意外关闭，尝试重新连接...')
             setTimeout(() => {
                 // 重新初始化WebSocket连接
                 const newConnection = initializeWebSocket(
@@ -108,12 +109,20 @@ export const initializeWebSocket = (type, callbacks, isRecordingRef) => {
                 )
                 // 更新socket引用
                 socket = newConnection.socket
+                // 重新绑定事件监听器
+                socket.addEventListener('message', handleMessage)
+                socket.addEventListener('error', handleError)
+                socket.addEventListener('close', handleClose)
             }, 5000) // 5秒后重试
         }
 
         // 如果连接关闭，更新录音状态和按钮状态
         if (isRecordingRef) {
             isRecordingRef.value = false
+            // 调用传入的stopRecording函数
+            if (callbacks && callbacks.onStop) {
+                callbacks.onStop()
+            }
         }
     }
 
@@ -220,20 +229,35 @@ export function useAudioRecorder() {
 
             if (hasLocalAudio) {
                 console.log('开始本地录音')
-                const stream = await audioProcessor.startLocalRecording()
+                // 直接获取媒体流，而不是通过 audioProcessor.startLocalRecording()
+                const stream = await navigator.mediaDevices.getUserMedia({
+                    audio: true,
+                })
 
                 // 创建消息类型和音频流的复合包
                 const messageType = new Uint8Array([0]) // 0表示音频
-                const combinedBuffer = new Uint8Array(1 + stream.size)
-                combinedBuffer.set(messageType, 0)
-
-                // 开始录音并发送音频流
                 mediaRecorder.value = new MediaRecorder(stream)
-                mediaRecorder.value.ondataavailable = (event) => {
+                mediaRecorder.value.ondataavailable = async (event) => {
                     if (event.data.size > 0) {
-                        const audioData = new Uint8Array(event.data.size)
-                        combinedBuffer.set(audioData, 1)
-                        socketInstance.send(combinedBuffer.buffer)
+                        // 检查 WebSocket 连接状态
+                        if (
+                            socketInstance &&
+                            socketInstance.readyState === WebSocket.OPEN
+                        ) {
+                            const audioData = new Uint8Array(
+                                await event.data.arrayBuffer(),
+                            )
+                            const combinedBuffer = new Uint8Array(
+                                1 + audioData.length,
+                            )
+                            combinedBuffer.set(messageType, 0)
+                            combinedBuffer.set(audioData, 1)
+                            socketInstance.send(combinedBuffer.buffer)
+                        } else {
+                            console.warn(
+                                'WebSocket连接已关闭，无法发送音频数据',
+                            )
+                        }
                     }
                 }
                 mediaRecorder.value.start(100) // 100ms数据切片
