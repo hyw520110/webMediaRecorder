@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Web Media Recorder</title>
+</head>
+<body>
+    <h1>web录音机/录像机HTML5实现</h1>
+    <button id="startBtn">Start Recording</button>
+    <button id="stopBtn" disabled>Stop Recording</button>
+    <video id="videoPlayer" autoplay muted></video>
+
+    <script>
+        const startBtn = document.getElementById('startBtn');
+        const stopBtn = document.getElementById('stopBtn');
+        const videoPlayer = document.getElementById('videoPlayer');
+
+        let mediaStream;
+        let audioContext;
+        let mediaRecorder;
+        let socket;
+
+        startBtn.addEventListener('click', async () => {
+            try {
+                mediaStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+                videoPlayer.srcObject = mediaStream;
+
+                audioContext = new AudioContext();
+                const source = audioContext.createMediaStreamSource(mediaStream);
+                const processor = audioContext.createScriptProcessor(4096, 1, 1);
+
+                source.connect(processor);
+                processor.connect(audioContext.destination);
+
+                processor.onaudioprocess = (event) => {
+                    const audioData = event.inputBuffer.getChannelData(0);
+                    // 处理音频数据
+                };
+
+                mediaRecorder = new MediaRecorder(mediaStream);
+                mediaRecorder.ondataavailable = (event) => {
+                    if (event.data.size > 0) {
+                        socket.send(event.data);
+                    }
+                };
+
+                socket = new WebSocket('ws://localhost:8080/websocket');
+                socket.binaryType = 'arraybuffer';
+                socket.onopen = () => {
+                    mediaRecorder.start(1000);
+                    startBtn.disabled = true;
+                    stopBtn.disabled = false;
+                };
+
+            } catch (error) {
+                console.error('Error accessing media devices:', error);
+            }
+        });
+
+        stopBtn.addEventListener('click', () => {
+            mediaRecorder.stop();
+            socket.close();
+            startBtn.disabled = false;
+            stopBtn.disabled = true;
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,51 @@
+<configuration scan="true" scanPeriod="30 seconds">
+
+    <!-- 定义全局属性 -->
+    <property name="LOG_HOME" value="/opt/logs" />
+    <property name="APP_NAME" value="web-media-recorder" />
+	
+    <property name="pattern" value="%d{yy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %replace(%caller{1}){'\t|Caller.{1}0| at|\R |\n', ''} %msg%n %ex{short}"/>
+    <!-- 控制台Appender -->
+     <appender name="console" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder class="ch.qos.logback.classic.encoder.PatternLayoutEncoder">
+           <pattern>${pattern}</pattern>
+        </encoder>
+    </appender>
+    <!-- 异步ConsoleAppender -->
+    <appender name="ASYNCSTDOUT" class="ch.qos.logback.classic.AsyncAppender">
+        <appender-ref ref="console" />
+        <queueSize>500</queueSize>
+        <discardingThreshold>0</discardingThreshold>
+        <includeCallerData>true</includeCallerData>
+    </appender>
+
+    <!-- 滚动文件Appender -->
+    <appender name="ROLLINGFILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>${LOG_HOME}/${APP_NAME}.log</file>
+        <encoder class="ch.qos.logback.classic.encoder.PatternLayoutEncoder">
+            <pattern>${pattern}</pattern>
+        </encoder>
+        <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
+            <fileNamePattern>${LOG_HOME}/${APP_NAME}/archived/${PROCESS_NAME}-${DEVICE_ID}-%d{yyyy-MM-dd}.log.gz</fileNamePattern>
+            <maxHistory>30</maxHistory>
+        </rollingPolicy>
+        <triggeringPolicy class="ch.qos.logback.core.rolling.SizeBasedTriggeringPolicy">
+            <maxFileSize>10MB</maxFileSize>
+        </triggeringPolicy>
+    </appender>
+
+    <!-- 异步RollingFileAppender -->
+    <appender name="ASYNCROLLINGFILE" class="ch.qos.logback.classic.AsyncAppender">
+        <appender-ref ref="ROLLINGFILE" />
+        <queueSize>500</queueSize>
+        <discardingThreshold>0</discardingThreshold>
+        <includeCallerData>true</includeCallerData>
+    </appender>
+
+    <!-- 根记录器 -->
+    <root level="INFO">
+        <appender-ref ref="console" />
+        <appender-ref ref="ROLLINGFILE" />
+    </root>
+
+</configuration>
